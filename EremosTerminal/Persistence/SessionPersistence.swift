@@ -11,8 +11,12 @@ struct SessionsFile: Codable, Equatable {
 struct SessionPersistence {
     let fileURL: URL
 
-    /// `~/Library/Application Support/Eremos Terminal/sessions.json`
+    /// `~/Library/Application Support/Eremos Terminal/sessions.json`, or the file in `EREMOS_TERMINAL_SESSIONS_FILE`
+    /// — for running a development build next to the installed app without touching its sessions.
     static var standard: SessionPersistence {
+        if let path = ProcessInfo.processInfo.environment["EREMOS_TERMINAL_SESSIONS_FILE"], !path.isEmpty {
+            return SessionPersistence(fileURL: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
+        }
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return SessionPersistence(
             fileURL: support.appendingPathComponent("Eremos Terminal", isDirectory: true)
