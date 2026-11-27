@@ -1,146 +1,184 @@
 # Eremos Terminal
 
-Нативное macOS-приложение для работы с Claude Code: слева список сессий, справа терминал выбранной.
-Каждая сессия — своя папка и свой `zsh`; Claude Code запускается в ней кнопкой.
+**A native macOS app for running several [Claude Code](https://docs.anthropic.com/en/docs/claude-code) sessions side by side.**
+Sessions on the left, the selected session's terminal on the right. Each session is a folder with its own
+`zsh`. You start Claude with a button, and the app tells you when Claude has finished or needs your input.
 
-Swift + SwiftUI, macOS 14+, терминал — [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm).
+[Русская версия](README.ru.md)
 
-## Запуск
+![Eremos Terminal](docs/screenshot.png)
 
-Нужны Xcode и [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+> The interface is in Russian for now. Pull requests that add localization are welcome.
+
+## Features
+
+- **One window, many projects.** Every session is a real terminal (`zsh -l`) in its own folder. Switching
+  between sessions is instant, and scrollback and running processes are kept.
+- **Claude buttons.** «Новый Claude» (new conversation, `claude`), «Прошлые сессии» (pick a past
+  conversation, `claude --resume`) and «Продолжить» (continue the last one, `claude --continue`).
+  While Claude is running, a «Claude работает» badge replaces the buttons.
+- **Notifications.** When Claude finishes or needs you (a permission prompt or a question) in a session
+  you're not looking at, you get:
+  - a macOS notification;
+  - a mark next to the session;
+  - a count on the Dock icon;
+  - a Dock bounce.
+- **Sessions survive restarts.** After relaunching, every session reopens its shell in the same folder. If
+  Claude has talked in that folder before, a banner offers to continue the conversation.
+- **Your setup stays yours.** Your `.zshrc`, `.zprofile`, history and Claude Code settings are used as they
+  are. Nothing in them is changed.
+- Dark theme, JetBrains Mono font (bundled), drag a folder onto the Dock icon to open it.
+
+## Requirements
+
+- macOS 14 Sonoma or later, Apple Silicon or Intel.
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed, with `claude` available in
+  your login `zsh` (it works if `claude` runs in Terminal.app).
+
+## Install
+
+### Download
+
+1. Download `Eremos-Terminal-<version>.zip` from
+   [Releases](https://github.com/matveevvadim27/eremos-terminal/releases/latest), unzip it and move
+   **Eremos Terminal.app** to **Applications**.
+2. On first launch macOS will block the app. It isn't signed with an Apple Developer ID, so Apple can't
+   check it. Allow it once:
+   - open the app, then go to **System Settings → Privacy & Security** and click **Open Anyway**;
+   - or run this in Terminal:
+     ```bash
+     xattr -dr com.apple.quarantine "/Applications/Eremos Terminal.app"
+     ```
+
+If you'd rather not run a downloaded binary, build it yourself. It takes about a minute.
+
+### Build from source
+
+You need Xcode 15+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
 
 ```bash
-make run        # собрать Release и запустить
-make install    # собрать и положить в /Applications
-make open       # открыть проект в Xcode (⌘R — запуск, ⌘U — тесты)
-make test       # юнит-тесты
+brew install xcodegen
+git clone https://github.com/matveevvadim27/eremos-terminal.git
+cd eremos-terminal
+make install    # builds a Release version and copies it to /Applications
 ```
 
-Dev-сборку можно запустить рядом с установленным приложением, не трогая его сессии:
+## Usage
+
+| Action | |
+|---|---|
+| ⌘T or «+» | New session: a terminal in your home folder |
+| ⌘O or the «+» menu | New session in a folder you pick |
+| Drag a folder onto the Dock icon | New session in that folder (or `open -a "Eremos Terminal" ~/path`) |
+| «Новый Claude», ⌘↩ | `claude`: start a new conversation |
+| «Прошлые сессии», ⌥⌘↩ | `claude --resume`: choose from past conversations in this folder |
+| Arrow next to «Прошлые сессии», ⇧⌘↩ | `claude --continue`: resume the last conversation |
+| ⌘1…⌘9 | Switch to a session |
+| ⌃⌘S | Show / hide the session list |
+| Double-click a session | Rename it (Enter saves, Esc cancels, an empty name restores the default) |
+| ⌘W | Close the session. Its shell and everything running in it are ended |
+
+The dot on a session's icon shows its state:
+
+| Dot | Meaning |
+|---|---|
+| green | Claude is running |
+| red | the shell has exited (restart it from the banner) |
+| yellow | the folder no longer exists |
+
+Closing the window keeps the sessions running. Click the Dock icon to bring the window back. ⌘Q ends them.
+
+### Notifications and Focus mode
+
+macOS asks for permission on the first notification. If a Focus mode (Do Not Disturb, etc.) is on,
+banners are delivered silently to Notification Center. To get them anyway, add Eremos Terminal under
+**System Settings → Focus → *your mode* → Allowed Notifications → Apps**. The Dock bounce works
+regardless of Focus.
+
+## How it works
+
+- **Terminal.** [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) runs `zsh -l` in each session's
+  folder, so `PATH` and everything else is the same as in Terminal.app.
+- **Claude detection.** Once a second the app checks each shell's child processes to see whether `claude`
+  is running. This drives the buttons and the green dot.
+- **Notifications.** Done through [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks).
+  - Shells start with `ZDOTDIR` pointing at a small `.zshenv` owned by the app. It puts your own `ZDOTDIR`
+    back, so your startup files load as usual.
+  - It also defines a `claude` shell function that adds `--settings <the app's hooks file>`.
+  - The hooks append a line to a per-session events file, and the app reads these files.
+  - This is why `claude` typed by hand also triggers notifications. Subcommands (`claude mcp`,
+    `claude update`, …) run untouched.
+
+### Files and privacy
+
+The app makes no network requests. Everything it writes is in
+`~/Library/Application Support/Eremos Terminal/`:
+
+| File | Contents |
+|---|---|
+| `sessions.json` | the session list: names and folders |
+| `claude-settings.json` | the hooks passed to `claude --settings` |
+| `zsh/.zshenv` | the shell wrapper described above |
+| `events/` | short-lived hook events, deleted once read |
+
+It reads Claude Code's `~/.claude/projects/` (or `$CLAUDE_CONFIG_DIR/projects/`) only to check whether a
+folder has past conversations. It never writes there.
+
+**Uninstall:** quit the app, delete it from Applications and delete
+`~/Library/Application Support/Eremos Terminal/`.
+
+## Known limitations
+
+- **Interface only in Russian, dark theme only.**
+- **zsh only.** Sessions always run `zsh`, the macOS default shell.
+- **Typing `claude` by hand needs the shell function.** If your `.zshrc` defines an alias named `claude`,
+  the wrapper is bypassed and you won't get notifications for that `claude`.
+- **The green dot doesn't tell "thinking" from "waiting for you".** The notification mark does.
+- **Option works as Meta** (SwiftTerm's default). ⌥←/⌥→ move by word, but characters typed with Option
+  don't work in the terminal.
+- **Not signed or notarized**, see [Install](#install).
+
+## Development
+
+```bash
+make open       # generate the Xcode project and open it (⌘R run, ⌘U tests)
+make test       # unit tests
+make run        # Release build and launch
+make dist       # zip for a GitHub release → dist/
+```
+
+- `EremosTerminal.xcodeproj` isn't in git. `make project` generates it from `project.yml`, and new files
+  under `EremosTerminal/` are picked up automatically.
+- When you first open the project, Xcode asks whether to trust the SwiftTerm package plugin. Choose
+  «Trust & Enable». The Makefile passes `-skipPackagePluginValidation` instead.
+
+To run a development build next to an installed copy without touching its sessions:
 
 ```bash
 EREMOS_TERMINAL_SESSIONS_FILE=/tmp/dev-sessions.json \
   "build/Build/Products/Release/Eremos Terminal.app/Contents/MacOS/Eremos Terminal"
 ```
 
-`EremosTerminal.xcodeproj` не хранится в git: его генерирует `make project` из `project.yml`.
-Новые файлы добавляй в папки `EremosTerminal/…` — после `make project` они попадут в проект сами.
-
-При первом открытии в Xcode он спросит, доверять ли плагину SwiftTerm («Trust & Enable») — да.
-Из командной строки это делает флаг `-skipPackagePluginValidation` в Makefile.
-
-## Как пользоваться
-
-| | |
-|---|---|
-| ⌘T или «+» | новая сессия: терминал (`zsh -l`) в домашней папке, как у Терминала macOS |
-| ⌘O или стрелка у «+» | открыть папку: выбрать папку → терминал в ней |
-| двойной клик или «Переименовать» в контекстном меню | переименовать сессию: Enter — сохранить, Esc — отмена, пустое имя — исходное |
-| «Новый Claude», ⌘↩ | `claude` — новый разговор |
-| «Прошлые сессии», ⌥⌘↩ | `claude --resume` — список прошлых разговоров в этой папке, с поиском |
-| стрелка у «Прошлых сессий», ⇧⌘↩ | `claude --continue` — сразу последний разговор |
-| ⌘1…⌘9 | переключиться на сессию |
-| ⌃⌘S или кнопка в углу | скрыть / показать список сессий |
-| ⌘W или контекстное меню | закрыть сессию: шелл и всё, что в нём запущено, завершаются |
-| перетащить папку на иконку в Dock | новая сессия в этой папке |
-
-```bash
-open -a "Eremos Terminal" ~/Projects/my-app   # то же из терминала
-```
-
-Кнопки Claude видны, только пока в сессии не работает Claude: иначе команда ушла бы в его поле ввода.
-Пока Claude работает, на их месте метка «● Claude работает». Приложение раз в секунду смотрит процессы
-сессии, поэтому после выхода из Claude кнопки возвращаются.
-Точка на иконке сессии: зелёная — Claude работает, красная — терминал завершился, жёлтая — папки
-больше нет; без точки — просто терминал.
-
-**Уведомления.** Когда Claude закончил ответ или ждёт тебя (разрешение, вопрос), а сессия не на экране:
-- системное уведомление — клик открывает эту сессию;
-- значок у сессии в списке: зелёная галочка — закончил, оранжевый — ждёт ответа;
-- число таких сессий на иконке в Dock;
-- один прыжок иконки в Dock, если приложение в фоне.
-
-Отметка снимается, когда открываешь сессию. При первом уведомлении macOS спросит разрешение.
-
-Если включён режим «Фокусирование» («Не беспокоить» и т.п.), macOS не показывает баннер и не играет звук:
-уведомление тихо попадает в Центр уведомлений. Чтобы баннеры приходили и в этом режиме, добавь
-Eremos Terminal в разрешённые приложения: «Системные настройки → Фокусирование → <режим> → Разрешённые
-уведомления → Приложения». Прыжок иконки в Dock «Фокусирование» не глушит.
-
-Работает через hooks Claude Code и не трогает твои настройки Claude и zsh. Приложение пишет
-`claude-settings.json` с hooks рядом с `sessions.json`, а шеллы запускает с `ZDOTDIR`, который указывает
-на свой `zsh/.zshenv`. Тот возвращает твой `ZDOTDIR`, так что `.zprofile`, `.zshrc` и история остаются
-твоими, и объявляет функцию `claude`, добавляющую `--settings`. Поэтому уведомления приходят и для `claude`,
-набранного руками. Подкоманды (`claude mcp`, `claude update`…) идут без неё.
-
-**Перезапуск приложения.** Список сессий хранится в
-`~/Library/Application Support/Eremos Terminal/sessions.json`. При запуске для каждой сессии открывается шелл
-в её папке, дальше — те же кнопки «Новый Claude» и «Прошлые сессии». Если в этой папке уже были
-разговоры с Claude, сверху баннер «Сессия восстановлена» с кнопкой «Продолжить» (`claude --continue`).
-Приложение узнаёт об этом по `~/.claude/projects/` — только читает, ничего там не меняет.
-Если папки больше нет, шелл откроется в домашней, и баннер об этом скажет.
-
-**Шелл завершился** (`exit` или упал): точка в списке красная, история остаётся видна,
-в баннере «Перезапустить» и «Закрыть сессию».
-
-Закрытие окна не завершает сессии — окно вернётся по клику на иконку в Dock. Процессы завершаются
-при закрытии сессии или выходе из приложения (⌘Q).
-
-## Устройство
+<details>
+<summary>Project structure</summary>
 
 ```
 EremosTerminal/
-├── App/
-│   ├── EremosTerminalApp.swift   точка входа: окно, меню, создание SessionStore
-│   ├── SessionCommands.swift     пункты меню и горячие клавиши
-│   ├── AppDelegate.swift         открытие папок через Dock / `open -a`, тёмная тема
-│   ├── WindowChrome.swift        окно без заголовка: кнопки окна в верхнем ряду
-│   └── Notifier.swift            системные уведомления и клик по ним
-├── Models/
-│   ├── Session.swift             данные сессии (id, name, folderPath) + статус процесса
-│   └── SessionStore.swift        состояние приложения: список, выбор, живые терминалы
-├── Persistence/
-│   └── SessionPersistence.swift  sessions.json
-├── Terminal/
-│   ├── TerminalFont.swift        встроенный JetBrains Mono (Resources/Fonts, лицензия OFL)
-│   ├── TerminalFactory.swift     создание терминала и запуск zsh, окружение (LANG для кириллицы)
-│   ├── TerminalContainerView.swift  мост SwiftUI → AppKit-терминал
-│   ├── ProcessTree.swift         дочерние процессы шелла и их завершение
-│   ├── ClaudeDetector.swift      запущен ли claude в сессии (по аргументам процессов)
-│   ├── ClaudeIntegration.swift   hooks Claude Code, обёртка zsh, чтение событий
-│   └── ClaudeHistory.swift       были ли разговоры с Claude в папке (для «Продолжить»)
-├── Views/
-│   ├── Theme.swift               цвета, кнопки и мелкие элементы дизайна
-│   ├── ContentView.swift         сайдбар + деталь
-│   ├── SidebarView.swift         список сессий
-│   └── SessionDetailView.swift   шапка с кнопками Claude, баннер, терминал, пустое состояние
-└── Resources/                    иконка (Assets.xcassets), шрифт (Fonts/), дополнения к Info.plist
+├── App/            entry point, menus and shortcuts, window chrome, notifications
+├── Models/         Session, SessionStore (sessions, selection, live terminals, status polling)
+├── Persistence/    sessions.json
+├── Terminal/       terminal creation and theme, bundled font, process tree,
+│                   Claude detection, hooks integration, Claude history lookup
+├── Views/          theme tokens, sidebar, header, banners, empty state
+└── Resources/      app icon, JetBrains Mono, Info.plist additions
 ```
 
-Параллели с React для неочевидных мест:
+</details>
 
-- **`SessionStore` — как стор Zustand/MobX.** `@Observable` сам отслеживает, какие свойства читает каждый view,
-  и перерисовывает только их. В корне он создаётся один раз через `@State`, это аналог `useState(() => new Store())`.
-  Во view стор передаётся обычным свойством, как проп: клик просто меняет `store.selectedID`.
-- **Терминалы не в состоянии SwiftUI.** Это AppKit-объекты с живыми процессами. Они лежат в словаре
-  `[UUID: LocalProcessTerminalView]` внутри стора (`@ObservationIgnored`, перерисовок не вызывает),
-  создаются один раз и только переставляются. Отсюда мгновенное переключение и сохранность истории:
-  ничего не размонтируется.
-- **`TerminalContainerView` (`NSViewRepresentable`)** — как компонент с `useRef` на `<div>`, внутри которого
-  рисует императивная библиотека. `makeNSView` — монтирование, `updateNSView` — каждый ререндер.
-- **Делегат (`TerminalEvents`)** — способ AppKit передавать события: объект с методами вместо пропсов `onExit`.
-- **`@MainActor`** — код, который должен выполняться в главном (UI) потоке; компилятор это проверяет.
+## License
 
-## Известные ограничения
+[MIT](LICENSE). The bundled JetBrains Mono font is under the
+[SIL Open Font License 1.1](EremosTerminal/Resources/Fonts/JetBrainsMono-OFL.txt).
 
-- **В новой для Claude папке** он сначала спросит «Do you trust this folder». Это поведение Claude Code.
-- **Уведомления только от Claude, запущенного внутри сессии этого приложения.** Если `claude` переопределён
-  алиасом в `.zshrc`, обёртка не сработает.
-- **Точка «Claude работает» не различает «думает» и «ждёт тебя»**: это видно по значку уведомления.
-- **Прошлые сессии — встроенный список Claude** (`claude --resume`) в терминале, а не нативный список в окне.
-- **Только тёмная тема**, как в дизайне. Нет перетаскивания сессий и настроек шрифта.
-- **⌘1…⌘9 только для первых девяти сессий**, как вкладки браузера.
-- **Option работает как Meta** (настройка SwiftTerm по умолчанию): ⌥←/⌥→ двигают по словам в zsh,
-  но символы, которые набираются через Option, в терминале не наберутся.
-- **Подпись ad-hoc.** Приложение собрано без Apple Developer ID: на другом Mac Gatekeeper попросит
-  разрешить запуск в «Настройках → Конфиденциальность и безопасность». На своём Mac из `make install` всё работает.
+Eremos Terminal is an independent project. It isn't affiliated with or endorsed by Anthropic.
+«Claude» and «Claude Code» are trademarks of Anthropic.
