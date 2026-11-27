@@ -21,6 +21,11 @@ final class SessionStore {
         }
     }
 
+    /// The sidebar's show/hide button and ⌃⌘S. Remembered between launches.
+    var isSidebarVisible = UserDefaults.standard.object(forKey: "sidebarVisible") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(isSidebarVisible, forKey: "sidebarVisible") }
+    }
+
     @ObservationIgnored private var terminals: [UUID: LocalProcessTerminalView] = [:]
     @ObservationIgnored private let persistence: SessionPersistence
     @ObservationIgnored private let startsProcesses: Bool
@@ -96,6 +101,7 @@ final class SessionStore {
         launchedAt[id] = Date()
         setStatus(.claude, for: id)
         clearAttention(id)
+        dismissContinueOffer(for: id)
         terminal.window?.makeFirstResponder(terminal)
     }
 
@@ -108,6 +114,12 @@ final class SessionStore {
         guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions[index].folderMissing = false
         if let terminal = terminals[id] { terminal.window?.makeFirstResponder(terminal) }
+    }
+
+    /// Hides the «Сессия восстановлена» banner.
+    func dismissContinueOffer(for id: UUID) {
+        guard let index = sessions.firstIndex(where: { $0.id == id }), sessions[index].offersContinue else { return }
+        sessions[index].offersContinue = false
     }
 
     /// A new shell in the same folder after the old one quit. The old scrollback goes away.
@@ -205,6 +217,8 @@ final class SessionStore {
             if !running, let launched = launchedAt[id], Date().timeIntervalSince(launched) < 5 { continue }
             let status: SessionStatus = running ? .claude : .shell
             if sessions[index].status != status { sessions[index].status = status }
+            // Claude started by hand: the offer to continue is no longer needed.
+            if running, sessions[index].offersContinue { sessions[index].offersContinue = false }
         }
     }
 
@@ -309,8 +323,11 @@ final class SessionStore {
     private func restore() {
         guard let file = persistence.load() else { return }
         sessions = file.sessions
-        for session in sessions {
-            startShell(for: session.id)
+        for index in sessions.indices {
+            startShell(for: sessions[index].id)
+            if startsProcesses, !sessions[index].folderMissing {
+                sessions[index].offersContinue = ClaudeHistory.hasConversations(in: sessions[index].folderPath)
+            }
         }
         selectedID = file.selectedID.flatMap { id in sessions.contains { $0.id == id } ? id : nil }
             ?? sessions.first?.id

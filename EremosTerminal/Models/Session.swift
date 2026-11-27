@@ -13,6 +13,9 @@ struct Session: Identifiable, Codable, Hashable {
     var folderMissing = false
     /// Claude finished or needs you while the session wasn't on screen; cleared when you open it.
     var attention: Attention?
+    /// Reopened after an app restart in a folder where Claude has past conversations: the «Сессия
+    /// восстановлена» banner offers to continue the last one. Gone once Claude starts or the banner is closed.
+    var offersContinue = false
 
     // Only these keys go to JSON. The runtime fields have default values, so decoding works without them.
     enum CodingKeys: String, CodingKey {
