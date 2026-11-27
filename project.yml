@@ -52,7 +52,7 @@ targets:
         # No App Sandbox: the app has to spawn shells with full access to the user's files.
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: NO
-        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
   EremosTerminalTests:
     type: bundle.unit-test
