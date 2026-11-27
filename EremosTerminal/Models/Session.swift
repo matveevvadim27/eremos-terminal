@@ -1,21 +1,23 @@
 import Foundation
 
-/// One entry in the sidebar: a folder with its own shell (and usually Claude Code) running in it.
+/// One entry in the sidebar: a folder with its own shell, where Claude Code is started on demand.
 ///
 /// Like a plain object in React state: only data, no behaviour. What's saved to disk is `id`, `name` and
-/// `folderPath`; `status` describes the live process and is rebuilt on every launch.
+/// `folderPath`; `status` and `folderMissing` describe the live process and are rebuilt on every launch.
 struct Session: Identifiable, Codable, Hashable {
     let id: UUID
     var name: String
     var folderPath: String
-    var status: SessionStatus = .running
+    var status: SessionStatus = .shell
+    /// The folder no longer exists: the shell was opened in the home folder instead.
+    var folderMissing = false
 
-    // Only these keys go to JSON. `status` has a default value, so decoding works without it.
+    // Only these keys go to JSON. The runtime fields have default values, so decoding works without them.
     enum CodingKeys: String, CodingKey {
         case id, name, folderPath
     }
 
-    init(id: UUID = UUID(), name: String, folderPath: String, status: SessionStatus = .running) {
+    init(id: UUID = UUID(), name: String, folderPath: String, status: SessionStatus = .shell) {
         self.id = id
         self.name = name
         self.folderPath = folderPath
@@ -28,15 +30,31 @@ struct Session: Identifiable, Codable, Hashable {
     var displayPath: String { (folderPath as NSString).abbreviatingWithTildeInPath }
 }
 
-/// State of the session's process. A later stage can add Claude-specific states (working / waiting for input)
-/// fed by Claude Code hooks.
+/// What's going on in the session's terminal. Updated by polling the shell's child processes (SessionStore).
+/// A later stage can split `.claude` into "working" / "waiting for input" using Claude Code hooks.
 enum SessionStatus: Hashable {
-    /// The shell is running; for a new session `claude` was started automatically.
-    case running
-    /// Reopened after an app restart: the shell is running, `claude` is offered via the «Продолжить» button.
-    case restored
-    /// The folder no longer exists: the shell was opened in the home folder instead.
-    case folderMissing
+    /// The shell is at its prompt (or runs something else) — Claude can be started.
+    case shell
+    /// Claude Code is running in this session.
+    case claude
     /// The shell has quit (e.g. `exit`); the scrollback is still visible.
     case exited(code: Int32?)
+}
+
+/// How to start Claude Code from the toolbar or the menu.
+enum ClaudeLaunch {
+    /// `claude` — a new conversation.
+    case new
+    /// `claude --continue` — the most recent conversation in this folder.
+    case continueLast
+    /// `claude --resume` — Claude's own list of past conversations in this folder, with search.
+    case pickPast
+
+    var command: String {
+        switch self {
+        case .new: "claude"
+        case .continueLast: "claude --continue"
+        case .pickPast: "claude --resume"
+        }
+    }
 }

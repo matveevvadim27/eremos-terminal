@@ -8,12 +8,8 @@ enum TerminalFactory {
 
     /// A terminal view running `zsh -l` in `directory`. Login shell (`-l`) reads ~/.zprofile, and since it's
     /// interactive it reads ~/.zshrc too — so PATH is the same as in Terminal.app, `claude` included.
-    ///
-    /// With `startCommand` the shell runs it first and then becomes a normal interactive shell
-    /// (`zsh -l -i -c 'claude; exec zsh -l'`): quitting Claude leaves you at the prompt in the same folder.
     static func makeTerminal(
         directory: String,
-        startCommand: String? = nil,
         delegate: LocalProcessTerminalViewDelegate
     ) -> LocalProcessTerminalView {
         let view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
@@ -24,7 +20,7 @@ enum TerminalFactory {
         view.nativeForegroundColor = .textColor
         view.startProcess(
             executable: shell,
-            args: startCommand.map { ["-l", "-i", "-c", "\($0); exec \(shell) -l"] } ?? ["-l"],
+            args: ["-l"],
             environment: environment(),
             execName: "-zsh",
             currentDirectory: directory
@@ -32,9 +28,9 @@ enum TerminalFactory {
         return view
     }
 
-    /// Typed into a running shell as if by the user.
+    /// Typed into the shell as if by the user. Ctrl+U first clears whatever is half-typed at the prompt.
     static func run(_ command: String, in terminal: LocalProcessTerminalView) {
-        terminal.send(txt: command + "\r")
+        terminal.send(txt: "\u{15}" + command + "\r")
     }
 
     /// The app's environment adjusted for a terminal. Apps started from Finder get a minimal environment

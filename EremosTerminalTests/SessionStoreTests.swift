@@ -29,7 +29,7 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.selectedID, store.sessions[2].id)
     }
 
-    func testSessionsSurviveRestartAndStartRestored() {
+    func testSessionsSurviveRestart() {
         let store = makeStore()
         store.addSession(folder: URL(fileURLWithPath: "/tmp/one"))
         store.addSession(folder: URL(fileURLWithPath: "/tmp/two"))
@@ -68,7 +68,7 @@ final class SessionStoreTests: XCTestCase {
         try persistence.save(file)
         let json = try String(contentsOf: persistence.fileURL, encoding: .utf8)
         XCTAssertFalse(json.contains("status"))
-        XCTAssertEqual(persistence.load()?.sessions.first?.status, .running)
+        XCTAssertEqual(persistence.load()?.sessions.first?.status, .shell)
     }
 
     func testBrokenFileIsSetAside() throws {

@@ -43,7 +43,7 @@ private struct SessionRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            StatusDot(status: session.status)
+            StatusDot(session: session)
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.name)
                     .lineLimit(1)
@@ -65,22 +65,30 @@ private struct SessionRow: View {
     }
 }
 
-/// Placeholder for the future Claude statuses (working / waiting) — for now only "alive or not".
+/// Green — Claude is running, grey — just the shell, red — the shell has quit, orange — the folder is gone.
 private struct StatusDot: View {
-    let status: SessionStatus
+    let session: Session
 
     var body: some View {
         Circle()
             .fill(color)
             .frame(width: 7, height: 7)
+            .help(hint)
     }
 
     private var color: Color {
-        switch status {
-        case .running: .green
-        case .restored: .secondary
-        case .folderMissing: .orange
+        switch session.status {
+        case .claude: .green
         case .exited: .red
+        case .shell: session.folderMissing ? .orange : .secondary
+        }
+    }
+
+    private var hint: String {
+        switch session.status {
+        case .claude: "Claude работает"
+        case .exited: "Терминал завершился"
+        case .shell: session.folderMissing ? "Папка не найдена" : "Терминал"
         }
     }
 }

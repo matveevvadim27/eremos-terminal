@@ -21,12 +21,17 @@ final class SessionStore {
     @ObservationIgnored private let persistence: SessionPersistence
     @ObservationIgnored private let startsProcesses: Bool
     @ObservationIgnored private lazy var events = TerminalEvents(store: self)
+    @ObservationIgnored private var statusTimer: Timer?
+    /// When Claude was last launched from a button: until it shows up in the process list (a moment later),
+    /// polling must not flip the status back to `.shell` and re-enable the buttons.
+    @ObservationIgnored private var launchedAt: [UUID: Date] = [:]
 
     /// - Parameter startsProcesses: false in unit tests — the list logic without real shells.
     init(persistence: SessionPersistence = .standard, startsProcesses: Bool = true) {
         self.persistence = persistence
         self.startsProcesses = startsProcesses
         restore()
+        if startsProcesses { startStatusPolling() }
     }
 
     var selectedSession: Session? {
@@ -39,11 +44,11 @@ final class SessionStore {
 
     // MARK: - Commands
 
-    /// A new session in `folder`: the shell starts there and `claude` runs right away.
+    /// A new session in `folder`: a shell opens there; Claude is started from the toolbar when needed.
     func addSession(folder: URL) {
         let session = Session(name: uniqueName(for: folder), folderPath: folder.standardizedFileURL.path)
         sessions.append(session)
-        startShell(for: session.id, runClaude: true)
+        startShell(for: session.id)
         selectedID = session.id
         save()
     }
@@ -69,25 +74,31 @@ final class SessionStore {
         selectedID = sessions[index].id
     }
 
-    /// The «Продолжить» button of a restored session: `claude --continue` resumes the last conversation in that
-    /// folder, `claude` starts a new one.
-    func startClaude(in id: UUID, continueLast: Bool) {
-        guard let terminal = terminals[id] else { return }
-        TerminalFactory.run(continueLast ? "claude --continue" : "claude", in: terminal)
-        setStatus(.running, for: id)
+    /// The toolbar / menu buttons: types the `claude` command into the session's shell.
+    /// Only while the shell is idle — otherwise the text would land in whatever runs there (e.g. Claude's prompt).
+    func startClaude(_ launch: ClaudeLaunch, in id: UUID) {
+        guard let terminal = terminals[id], canStartClaude(in: id) else { return }
+        TerminalFactory.run(launch.command, in: terminal)
+        launchedAt[id] = Date()
+        setStatus(.claude, for: id)
         terminal.window?.makeFirstResponder(terminal)
     }
 
-    /// Hides the «Продолжить» banner without starting anything.
-    func dismissBanner(for id: UUID) {
-        setStatus(.running, for: id)
+    func canStartClaude(in id: UUID) -> Bool {
+        sessions.first { $0.id == id }?.status == .shell
+    }
+
+    /// Hides the "folder not found" banner.
+    func dismissFolderWarning(for id: UUID) {
+        guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
+        sessions[index].folderMissing = false
         if let terminal = terminals[id] { terminal.window?.makeFirstResponder(terminal) }
     }
 
-    /// A new shell (and `claude`) in the same folder after the old one quit. The old scrollback goes away.
+    /// A new shell in the same folder after the old one quit. The old scrollback goes away.
     func restart(_ id: UUID) {
         endProcesses(of: id)
-        startShell(for: id, runClaude: true)
+        startShell(for: id)
     }
 
     func revealInFinder(_ id: UUID) {
@@ -128,21 +139,35 @@ final class SessionStore {
 
     // MARK: - Internals
 
-    private func startShell(for id: UUID, runClaude: Bool) {
-        guard startsProcesses, let session = sessions.first(where: { $0.id == id }) else { return }
-        let folderExists = FileManager.default.fileExists(atPath: session.folderPath)
-        let directory = folderExists ? session.folderPath : NSHomeDirectory()
-        let terminal = TerminalFactory.makeTerminal(
-            directory: directory,
-            startCommand: folderExists && runClaude ? "claude" : nil,
+    private func startShell(for id: UUID) {
+        guard startsProcesses, let index = sessions.firstIndex(where: { $0.id == id }) else { return }
+        let folderExists = FileManager.default.fileExists(atPath: sessions[index].folderPath)
+        terminals[id] = TerminalFactory.makeTerminal(
+            directory: folderExists ? sessions[index].folderPath : NSHomeDirectory(),
             delegate: events
         )
-        terminals[id] = terminal
+        sessions[index].status = .shell
+        sessions[index].folderMissing = !folderExists
+    }
 
-        if !folderExists {
-            setStatus(.folderMissing, for: id)
-        } else {
-            setStatus(runClaude ? .running : .restored, for: id)
+    /// Once a second: is Claude running in each shell? Drives the sidebar dot and enables the Claude buttons
+    /// again after Claude quits. Cheap — a few sysctl calls per session.
+    private func startStatusPolling() {
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshStatuses() }
+        }
+    }
+
+    private func refreshStatuses() {
+        for index in sessions.indices {
+            guard let terminal = terminals[sessions[index].id], terminal.process.running else { continue }
+            if case .exited = sessions[index].status { continue }
+            let id = sessions[index].id
+            let running = ClaudeDetector.isClaudeRunning(under: terminal.process.shellPid)
+            if running { launchedAt[id] = nil }
+            if !running, let launched = launchedAt[id], Date().timeIntervalSince(launched) < 5 { continue }
+            let status: SessionStatus = running ? .claude : .shell
+            if sessions[index].status != status { sessions[index].status = status }
         }
     }
 
@@ -175,7 +200,7 @@ final class SessionStore {
         guard let file = persistence.load() else { return }
         sessions = file.sessions
         for session in sessions {
-            startShell(for: session.id, runClaude: false)
+            startShell(for: session.id)
         }
         selectedID = file.selectedID.flatMap { id in sessions.contains { $0.id == id } ? id : nil }
             ?? sessions.first?.id

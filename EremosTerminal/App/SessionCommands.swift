@@ -16,12 +16,16 @@ struct SessionCommands: Commands {
         }
 
         CommandMenu("Сессии") {
-            // The keyboard way to the «Продолжить» button of a restored session.
-            Button("Продолжить разговор Claude") {
-                if let id = store.selectedID { store.startClaude(in: id, continueLast: true) }
-            }
-            .keyboardShortcut(.return, modifiers: [.command, .shift])
-            .disabled(store.selectedSession?.status != .restored)
+            // The toolbar buttons from the keyboard. Disabled while Claude runs, so the keys go to the terminal.
+            Button("Новый Claude") { startClaude(.new) }
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(!canStartClaude)
+            Button("Продолжить последний разговор") { startClaude(.continueLast) }
+                .keyboardShortcut(.return, modifiers: [.command, .shift])
+                .disabled(!canStartClaude)
+            Button("Прошлые сессии Claude…") { startClaude(.pickPast) }
+                .keyboardShortcut(.return, modifiers: [.command, .option])
+                .disabled(!canStartClaude)
 
             Divider()
 
@@ -31,6 +35,14 @@ struct SessionCommands: Commands {
                     .disabled(index >= store.sessions.count)
             }
         }
+    }
+
+    private var canStartClaude: Bool {
+        store.selectedID.map(store.canStartClaude(in:)) ?? false
+    }
+
+    private func startClaude(_ launch: ClaudeLaunch) {
+        if let id = store.selectedID { store.startClaude(launch, in: id) }
     }
 
     private func title(at index: Int) -> String {

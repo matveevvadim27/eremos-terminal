@@ -17,11 +17,14 @@ struct SessionDetailView: View {
             }
             .navigationTitle(session.name)
             .navigationSubtitle(session.displayPath)
+            .toolbar {
+                ClaudeToolbar(session: session, store: store)
+            }
         } else {
             ContentUnavailableView {
                 Label("Нет открытых сессий", systemImage: "terminal")
             } description: {
-                Text("Выберите папку — в ней откроется терминал и запустится Claude Code.")
+                Text("Выберите папку — в ней откроется терминал. Claude запускается кнопкой сверху.")
             } actions: {
                 Button("Новая сессия…") { store.presentNewSessionPanel() }
                     .keyboardShortcut(.defaultAction)
@@ -30,86 +33,90 @@ struct SessionDetailView: View {
     }
 }
 
+/// Top-right buttons. Active only while the shell is idle: once Claude runs, typing a command would go into
+/// Claude's prompt, so they're disabled until Claude quits.
+private struct ClaudeToolbar: ToolbarContent {
+    let session: Session
+    let store: SessionStore
+
+    var body: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                store.startClaude(.new, in: session.id)
+            } label: {
+                Label("Новый Claude", systemImage: "sparkles")
+            }
+            .labelStyle(.titleAndIcon)
+            .help("claude — новый разговор (⌘↩)")
+            .disabled(!canStart)
+
+            // A split button: the main part opens Claude's list of past conversations, the arrow has
+            // "continue the last one".
+            Menu {
+                Button("Продолжить последний разговор") { store.startClaude(.continueLast, in: session.id) }
+            } label: {
+                Label("Прошлые сессии", systemImage: "clock.arrow.circlepath")
+            } primaryAction: {
+                store.startClaude(.pickPast, in: session.id)
+            }
+            .labelStyle(.titleAndIcon)
+            .help("claude --resume — выбрать разговор из прошлых в этой папке (⌥⌘↩)")
+            .disabled(!canStart)
+        }
+    }
+
+    private var canStart: Bool { store.canStartClaude(in: session.id) }
+}
+
 private struct SessionBanner: View {
     let session: Session
     let store: SessionStore
 
     /// nil when the session needs nothing — the banner isn't shown at all.
     init?(session: Session, store: SessionStore) {
-        switch session.status {
-        case .restored, .folderMissing, .exited: break
-        case .running: return nil
-        }
+        guard session.folderMissing || session.isExited else { return nil }
         self.session = session
         self.store = store
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundStyle(iconColor)
+            Image(systemName: session.isExited ? "stop.circle" : "exclamationmark.triangle")
+                .foregroundStyle(session.isExited ? .red : .orange)
             Text(message)
                 .lineLimit(2)
             Spacer()
-            actions
+            if session.isExited {
+                // No Return shortcut here: Return typed into the terminal would press the button instead.
+                Button("Перезапустить") { store.restart(session.id) }
+                    .buttonStyle(.borderedProminent)
+                Button("Закрыть сессию") { store.close(session.id) }
+            } else {
+                Button {
+                    store.dismissFolderWarning(for: session.id)
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .help("Скрыть")
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(.bar)
     }
 
-    @ViewBuilder private var actions: some View {
-        switch session.status {
-        case .restored:
-            Button("Новый claude") { store.startClaude(in: session.id, continueLast: false) }
-            // No Return shortcut here: Return typed into the terminal would press the button instead.
-            Button("Продолжить") { store.startClaude(in: session.id, continueLast: true) }
-                .buttonStyle(.borderedProminent)
-                .help("claude --continue — последний разговор в этой папке")
-            dismissButton
-        case .folderMissing:
-            dismissButton
-        case .exited:
-            Button("Перезапустить") { store.restart(session.id) }
-                .buttonStyle(.borderedProminent)
-            Button("Закрыть сессию") { store.close(session.id) }
-        case .running:
-            EmptyView()
-        }
-    }
-
-    private var dismissButton: some View {
-        Button {
-            store.dismissBanner(for: session.id)
-        } label: {
-            Image(systemName: "xmark")
-        }
-        .buttonStyle(.borderless)
-        .help("Скрыть")
-    }
-
     private var message: String {
-        switch session.status {
-        case .restored: "Сессия восстановлена. Продолжить последний разговор Claude?"
-        case .folderMissing: "Папка \(session.displayPath) не найдена — терминал открыт в домашней папке."
-        case .exited(let code): "Процесс завершился" + (code.map { " (код \($0))" } ?? "") + "."
-        case .running: ""
+        if case .exited(let code) = session.status {
+            return "Терминал завершился" + (code.map { " (код \($0))" } ?? "") + "."
         }
+        return "Папка \(session.displayPath) не найдена — терминал открыт в домашней папке."
     }
+}
 
-    private var icon: String {
-        switch session.status {
-        case .restored: "arrow.clockwise.circle"
-        case .folderMissing: "exclamationmark.triangle"
-        default: "stop.circle"
-        }
-    }
-
-    private var iconColor: Color {
-        switch session.status {
-        case .folderMissing: .orange
-        case .exited: .red
-        default: .accentColor
-        }
+private extension Session {
+    var isExited: Bool {
+        if case .exited = status { return true }
+        return false
     }
 }
