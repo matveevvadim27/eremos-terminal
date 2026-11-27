@@ -10,6 +10,7 @@ enum TerminalFactory {
     /// interactive it reads ~/.zshrc too — so PATH is the same as in Terminal.app, `claude` included.
     static func makeTerminal(
         directory: String,
+        extraEnvironment: [String: String] = [:],
         delegate: LocalProcessTerminalViewDelegate
     ) -> LocalProcessTerminalView {
         let view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
@@ -21,7 +22,7 @@ enum TerminalFactory {
         view.startProcess(
             executable: shell,
             args: ["-l"],
-            environment: environment(),
+            environment: environment(adding: extraEnvironment),
             execName: "-zsh",
             currentDirectory: directory
         )
@@ -35,7 +36,7 @@ enum TerminalFactory {
 
     /// The app's environment adjusted for a terminal. Apps started from Finder get a minimal environment
     /// without a locale — without LANG, zsh and Claude Code would garble Cyrillic.
-    static func environment() -> [String] {
+    static func environment(adding extra: [String: String] = [:]) -> [String] {
         var env = ProcessInfo.processInfo.environment
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
@@ -51,6 +52,7 @@ enum TerminalFactory {
         for key in env.keys where key == "CLAUDECODE" || key.hasPrefix("CLAUDE_CODE_") {
             env.removeValue(forKey: key)
         }
+        env.merge(extra) { _, new in new }
         return env.map { "\($0.key)=\($0.value)" }
     }
 }

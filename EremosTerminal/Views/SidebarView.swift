@@ -54,6 +54,9 @@ private struct SessionRow: View {
                     .truncationMode(.head)
             }
             Spacer(minLength: 4)
+            if let attention = session.attention {
+                AttentionMark(attention: attention)
+            }
             if let shortcutIndex {
                 Text("⌘\(shortcutIndex)")
                     .font(.caption.monospacedDigit())
@@ -62,6 +65,24 @@ private struct SessionRow: View {
         }
         .padding(.vertical, 2)
         .help(session.folderPath)
+    }
+}
+
+/// Claude finished (blue check) or needs you (orange) while the session wasn't on screen.
+private struct AttentionMark: View {
+    let attention: Attention
+
+    var body: some View {
+        switch attention {
+        case .finished:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.blue)
+                .help("Claude закончил")
+        case .needsInput:
+            Image(systemName: "exclamationmark.bubble.fill")
+                .foregroundStyle(.orange)
+                .help("Claude ждёт ответа")
+        }
     }
 }
 

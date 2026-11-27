@@ -14,7 +14,11 @@ final class SessionStore {
     private(set) var sessions: [Session] = []
 
     var selectedID: UUID? {
-        didSet { if selectedID != oldValue { save() } }
+        didSet {
+            guard selectedID != oldValue else { return }
+            save()
+            if NSApp?.isActive == true, let selectedID { clearAttention(selectedID) }
+        }
     }
 
     @ObservationIgnored private var terminals: [UUID: LocalProcessTerminalView] = [:]
@@ -25,11 +29,15 @@ final class SessionStore {
     /// When Claude was last launched from a button: until it shows up in the process list (a moment later),
     /// polling must not flip the status back to `.shell` and re-enable the buttons.
     @ObservationIgnored private var launchedAt: [UUID: Date] = [:]
+    /// Hooks that tell the app when Claude finishes or needs you; nil in unit tests.
+    @ObservationIgnored private var integration: ClaudeIntegration?
+    @ObservationIgnored private var notifier: Notifier?
 
     /// - Parameter startsProcesses: false in unit tests — the list logic without real shells.
     init(persistence: SessionPersistence = .standard, startsProcesses: Bool = true) {
         self.persistence = persistence
         self.startsProcesses = startsProcesses
+        if startsProcesses { setUpClaudeIntegration() }
         restore()
         if startsProcesses { startStatusPolling() }
     }
@@ -57,6 +65,7 @@ final class SessionStore {
     func close(_ id: UUID) {
         guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
         endProcesses(of: id)
+        notifier?.withdraw(sessionID: id)
         sessions.remove(at: index)
         if selectedID == id {
             selectedID = sessions.isEmpty ? nil : sessions[min(index, sessions.count - 1)].id
@@ -81,6 +90,7 @@ final class SessionStore {
         TerminalFactory.run(launch.command, in: terminal)
         launchedAt[id] = Date()
         setStatus(.claude, for: id)
+        clearAttention(id)
         terminal.window?.makeFirstResponder(terminal)
     }
 
@@ -144,6 +154,7 @@ final class SessionStore {
         let folderExists = FileManager.default.fileExists(atPath: sessions[index].folderPath)
         terminals[id] = TerminalFactory.makeTerminal(
             directory: folderExists ? sessions[index].folderPath : NSHomeDirectory(),
+            extraEnvironment: integration?.environment(sessionID: id) ?? [:],
             delegate: events
         )
         sessions[index].status = .shell
@@ -154,7 +165,10 @@ final class SessionStore {
     /// again after Claude quits. Cheap — a few sysctl calls per session.
     private func startStatusPolling() {
         statusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshStatuses() }
+            MainActor.assumeIsolated {
+                self?.refreshStatuses()
+                self?.handleClaudeEvents()
+            }
         }
     }
 
@@ -169,6 +183,68 @@ final class SessionStore {
             let status: SessionStatus = running ? .claude : .shell
             if sessions[index].status != status { sessions[index].status = status }
         }
+    }
+
+    // MARK: - Claude events and attention
+
+    private func setUpClaudeIntegration() {
+        let integration = ClaudeIntegration(directory: persistence.fileURL.deletingLastPathComponent())
+        do {
+            try integration.install()
+            self.integration = integration
+        } catch {
+            NSLog("Eremos Terminal: no Claude notifications, can't write hook files: %@", String(describing: error))
+        }
+        let notifier = Notifier()
+        notifier.onOpenSession = { [weak self] id in self?.selectedID = id }
+        self.notifier = notifier
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                if let id = self?.selectedID { self?.clearAttention(id) }
+            }
+        }
+    }
+
+    private func handleClaudeEvents() {
+        guard let integration else { return }
+        for (id, event) in integration.drainEvents() {
+            guard let index = sessions.firstIndex(where: { $0.id == id }) else { continue }
+            let name = sessions[index].name
+            switch event {
+            case .working:
+                sessions[index].attention = nil
+            case .finished:
+                guard !isOnScreen(id) else { continue }
+                sessions[index].attention = .finished
+                notifier?.post(title: "Claude закончил", body: name, sessionID: id)
+            case .needsInput(let message):
+                guard !isOnScreen(id) else { continue }
+                sessions[index].attention = .needsInput
+                notifier?.post(title: "Claude ждёт ответа · \(name)", body: message ?? "Нужно ваше решение", sessionID: id)
+            }
+        }
+        updateDockBadge()
+    }
+
+    /// You're looking at it right now: the app is in front and this session is open.
+    private func isOnScreen(_ id: UUID) -> Bool {
+        NSApp.isActive && selectedID == id && NSApp.keyWindow != nil
+    }
+
+    private func clearAttention(_ id: UUID) {
+        guard let index = sessions.firstIndex(where: { $0.id == id }), sessions[index].attention != nil else { return }
+        sessions[index].attention = nil
+        notifier?.withdraw(sessionID: id)
+        updateDockBadge()
+    }
+
+    /// The number of sessions waiting for a look, on the Dock icon.
+    private func updateDockBadge() {
+        guard startsProcesses else { return }
+        let count = sessions.filter { $0.attention != nil }.count
+        NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
     }
 
     /// Removes the terminal and ends its shell with everything running inside (see ProcessTree).

@@ -11,6 +11,8 @@ struct Session: Identifiable, Codable, Hashable {
     var status: SessionStatus = .shell
     /// The folder no longer exists: the shell was opened in the home folder instead.
     var folderMissing = false
+    /// Claude finished or needs you while the session wasn't on screen; cleared when you open it.
+    var attention: Attention?
 
     // Only these keys go to JSON. The runtime fields have default values, so decoding works without them.
     enum CodingKeys: String, CodingKey {
@@ -39,6 +41,12 @@ enum SessionStatus: Hashable {
     case claude
     /// The shell has quit (e.g. `exit`); the scrollback is still visible.
     case exited(code: Int32?)
+}
+
+/// Why a session wants a look (a mark in the sidebar, a number on the Dock icon, a notification).
+enum Attention: Hashable {
+    case finished
+    case needsInput
 }
 
 /// How to start Claude Code from the toolbar or the menu.
