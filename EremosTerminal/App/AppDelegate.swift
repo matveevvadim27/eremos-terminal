@@ -13,6 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor private var pendingFolders: [URL] = []
 
+    /// The design is dark-only: menus, context menus and the folder dialog follow it too.
+    @MainActor func applicationWillFinishLaunching(_ notification: Notification) {
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+    }
+
     /// A folder dropped on the Dock icon or passed to `open -a "Eremos Terminal" <folder>` → a new session.
     @MainActor func application(_ application: NSApplication, open urls: [URL]) {
         let folders = urls.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }

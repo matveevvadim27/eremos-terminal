@@ -20,12 +20,13 @@ struct TerminalContainerView: NSViewRepresentable {
     }
 }
 
-/// A plain view that holds the current terminal, filling it below the toolbar.
+/// A plain view that holds the current terminal, with padding around it in the terminal's colour.
 final class TerminalHostView: NSView {
     // weak: the store owns the terminals; the host only displays one.
     private weak var current: LocalProcessTerminalView?
     /// Breathing room around the text, filled with the terminal's background colour.
-    private let inset = NSEdgeInsets(top: 4, left: 8, bottom: 4, right: 4)
+    static let inset = NSEdgeInsets(top: 16, left: 24, bottom: 12, right: 16)
+    private var inset: NSEdgeInsets { Self.inset }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -36,7 +37,7 @@ final class TerminalHostView: NSView {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override func updateLayer() {
-        layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
+        layer?.backgroundColor = NSColor(hex: 0x121110).cgColor
     }
 
     override var wantsUpdateLayer: Bool { true }

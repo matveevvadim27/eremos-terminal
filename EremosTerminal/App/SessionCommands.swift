@@ -17,6 +17,14 @@ struct SessionCommands: Commands {
                 .disabled(store.selectedID == nil)
         }
 
+        // View menu: the sidebar's show/hide, with the standard macOS shortcut.
+        CommandGroup(replacing: .sidebar) {
+            Button(store.isSidebarVisible ? "Скрыть боковую панель" : "Показать боковую панель") {
+                store.isSidebarVisible.toggle()
+            }
+            .keyboardShortcut("s", modifiers: [.control, .command])
+        }
+
         CommandMenu("Сессии") {
             // The toolbar buttons from the keyboard. Disabled while Claude runs, so the keys go to the terminal.
             Button("Новый Claude") { startClaude(.new) }

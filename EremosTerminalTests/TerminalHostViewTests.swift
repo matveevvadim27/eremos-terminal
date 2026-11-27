@@ -2,7 +2,7 @@ import SwiftTerm
 import XCTest
 @testable import Eremos_Terminal
 
-/// The terminal sits below the toolbar, follows the host's size and shows whole rows only.
+/// The terminal sits inside the padding, follows the host's size and shows whole rows only.
 @MainActor
 final class TerminalHostViewTests: XCTestCase {
     func testTerminalFollowsHostSizeWithWholeRowsPinnedToTop() {
@@ -23,7 +23,7 @@ final class TerminalHostViewTests: XCTestCase {
         let frame = terminal.frame
         XCTAssertTrue(host.bounds.contains(frame), "inside the host", file: file, line: line)
         // Pinned to the top: only the padding above it.
-        XCTAssertEqual(host.bounds.maxY - frame.maxY, 4, accuracy: 0.5, file: file, line: line)
+        XCTAssertEqual(host.bounds.maxY - frame.maxY, TerminalHostView.inset.top, accuracy: 0.5, file: file, line: line)
         // A whole number of rows: the height is exactly what those rows need.
         XCTAssertEqual(frame.height, terminal.getOptimalFrameSize().height, accuracy: 0.5, file: file, line: line)
     }

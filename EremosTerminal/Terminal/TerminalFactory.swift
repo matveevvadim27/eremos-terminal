@@ -16,9 +16,7 @@ enum TerminalFactory {
         let view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         view.processDelegate = delegate
-        // Without this the default colours are black on white regardless of the system appearance.
-        view.nativeBackgroundColor = .textBackgroundColor
-        view.nativeForegroundColor = .textColor
+        applyTheme(to: view)
         view.startProcess(
             executable: shell,
             args: ["-l"],
@@ -28,6 +26,29 @@ enum TerminalFactory {
         )
         return view
     }
+
+    /// The design's warm dark palette: background, text, an orange caret and 16 ANSI colours to match
+    /// (prompts, `ls`, git and Claude Code's own colours use these).
+    static func applyTheme(to view: TerminalView) {
+        view.nativeBackgroundColor = NSColor(hex: 0x121110)
+        view.nativeForegroundColor = NSColor(hex: 0xE6E1D8)
+        view.caretColor = NSColor(hex: 0xE58A68)
+        view.caretTextColor = NSColor(hex: 0x1E130E)
+        view.selectedTextBackgroundColor = NSColor(hex: 0xE58A68).withAlphaComponent(0.3)
+        view.installColors(ansiPalette.map { hex in
+            SwiftTerm.Color(
+                red8: UInt16((hex >> 16) & 0xFF),
+                green8: UInt16((hex >> 8) & 0xFF),
+                blue8: UInt16(hex & 0xFF)
+            )
+        })
+    }
+
+    /// black, red, green, yellow, blue, magenta, cyan, white — then their bright versions.
+    private static let ansiPalette: [UInt32] = [
+        0x2B2825, 0xE5786D, 0x8FCB9B, 0xE5C07B, 0x7DB7DD, 0xC79BD8, 0x7CC7C0, 0xD8D3CA,
+        0x6B665F, 0xF0958B, 0xB4E2BD, 0xF0D49A, 0xA3CDEA, 0xDDB8E8, 0xA5DDD7, 0xF6F1E9,
+    ]
 
     /// Typed into the shell as if by the user. Ctrl+U first clears whatever is half-typed at the prompt.
     static func run(_ command: String, in terminal: LocalProcessTerminalView) {

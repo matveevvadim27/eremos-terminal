@@ -25,6 +25,7 @@ struct EremosTerminalApp: App {
                     appDelegate.openFolder = { [store] url in store.addSession(folder: url) }
                 }
         }
+        .windowStyle(.hiddenTitleBar)
         .commands {
             SessionCommands(store: store)
         }
