@@ -16,7 +16,7 @@ struct SessionDetailView: View {
                 TerminalContainerView(terminal: store.terminal(for: session.id))
             }
             .navigationTitle(session.name)
-            .navigationSubtitle(session.displayPath)
+            .navigationSubtitle(session.displayPath == session.name ? "" : session.displayPath)
             .toolbar {
                 ClaudeToolbar(session: session, store: store)
             }
@@ -24,10 +24,11 @@ struct SessionDetailView: View {
             ContentUnavailableView {
                 Label("Нет открытых сессий", systemImage: "terminal")
             } description: {
-                Text("Выберите папку — в ней откроется терминал. Claude запускается кнопкой сверху.")
+                Text("Терминал в домашней папке или в выбранной. Claude запускается кнопкой сверху.")
             } actions: {
-                Button("Новая сессия…") { store.presentNewSessionPanel() }
+                Button("Новая сессия") { store.addHomeSession() }
                     .keyboardShortcut(.defaultAction)
+                Button("Открыть папку…") { store.presentOpenFolderPanel() }
             }
         }
     }

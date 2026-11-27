@@ -53,6 +53,11 @@ final class SessionStore {
     // MARK: - Commands
 
     /// A new session in `folder`: a shell opens there; Claude is started from the toolbar when needed.
+    /// ⌘T: a session in the home folder — where Terminal.app opens a new window.
+    func addHomeSession() {
+        addSession(folder: FileManager.default.homeDirectoryForCurrentUser)
+    }
+
     func addSession(folder: URL) {
         let session = Session(name: uniqueName(for: folder), folderPath: folder.standardizedFileURL.path)
         sessions.append(session)
@@ -116,8 +121,8 @@ final class SessionStore {
         NSWorkspace.shared.activateFileViewerSelecting([session.folderURL])
     }
 
-    /// Asks for a folder, then creates a session there.
-    func presentNewSessionPanel() {
+    /// ⌘O: asks for a folder, then creates a session there.
+    func presentOpenFolderPanel() {
         let panel = NSOpenPanel()
         panel.title = "Папка для новой сессии"
         panel.prompt = "Открыть"
@@ -272,8 +277,10 @@ final class SessionStore {
     }
 
     /// The folder name, plus " 2", " 3"… when a session with that name already exists.
+    /// The home folder is "~", like in the shell prompt.
     private func uniqueName(for folder: URL) -> String {
-        let base = folder.lastPathComponent.isEmpty ? folder.path : folder.lastPathComponent
+        let isHome = folder.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        let base = isHome ? "~" : (folder.lastPathComponent.isEmpty ? folder.path : folder.lastPathComponent)
         let taken = Set(sessions.map(\.name))
         guard taken.contains(base) else { return base }
         var n = 2

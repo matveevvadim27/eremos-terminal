@@ -77,4 +77,12 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertTrue(makeStore().sessions.isEmpty)
         XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("sessions.broken.json").path))
     }
+
+    func testHomeSessionIsNamedTilde() {
+        let store = makeStore()
+        store.addHomeSession()
+        store.addHomeSession()
+        XCTAssertEqual(store.sessions.map(\.name), ["~", "~ 2"])
+        XCTAssertEqual(store.sessions[0].folderPath, FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path)
+    }
 }

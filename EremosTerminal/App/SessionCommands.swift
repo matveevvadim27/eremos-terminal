@@ -8,8 +8,10 @@ struct SessionCommands: Commands {
     var body: some Commands {
         // Replaces File → New Window.
         CommandGroup(replacing: .newItem) {
-            Button("Новая сессия…") { store.presentNewSessionPanel() }
+            Button("Новая сессия") { store.addHomeSession() }
                 .keyboardShortcut("t")
+            Button("Открыть папку…") { store.presentOpenFolderPanel() }
+                .keyboardShortcut("o")
             Button("Закрыть сессию") { store.closeSelected() }
                 .keyboardShortcut("w")
                 .disabled(store.selectedID == nil)

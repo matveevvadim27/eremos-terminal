@@ -26,12 +26,15 @@ struct SidebarView: View {
         }
         .toolbar {
             ToolbarItem {
-                Button {
-                    store.presentNewSessionPanel()
+                // Split button: "+" opens a terminal in the home folder, the arrow offers choosing a folder.
+                Menu {
+                    Button("Открыть папку…") { store.presentOpenFolderPanel() }
                 } label: {
                     Label("Новая сессия", systemImage: "plus")
+                } primaryAction: {
+                    store.addHomeSession()
                 }
-                .help("Новая сессия (⌘T)")
+                .help("Новая сессия в домашней папке (⌘T), стрелка — выбрать папку (⌘O)")
             }
         }
     }
@@ -47,11 +50,14 @@ private struct SessionRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.name)
                     .lineLimit(1)
-                Text(session.displayPath)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
+                // "~" named "~" doesn't need its path repeated under the name.
+                if session.displayPath != session.name {
+                    Text(session.displayPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
             }
             Spacer(minLength: 4)
             if let attention = session.attention {
