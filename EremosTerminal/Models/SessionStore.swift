@@ -121,6 +121,24 @@ final class SessionStore {
         NSWorkspace.shared.activateFileViewerSelecting([session.folderURL])
     }
 
+    /// A new name from the sidebar. Empty — back to the default (the folder's name).
+    func rename(_ id: UUID, to newName: String) {
+        guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty
+            ? uniqueName(for: sessions[index].folderURL, ignoring: id)
+            : trimmed
+        guard name != sessions[index].name else { return }
+        sessions[index].name = name
+        save()
+    }
+
+    /// Gives the keyboard back to the selected terminal (e.g. after renaming in the sidebar).
+    func focusSelectedTerminal() {
+        guard let id = selectedID, let terminal = terminals[id] else { return }
+        terminal.window?.makeFirstResponder(terminal)
+    }
+
     /// ⌘O: asks for a folder, then creates a session there.
     func presentOpenFolderPanel() {
         let panel = NSOpenPanel()
@@ -278,10 +296,10 @@ final class SessionStore {
 
     /// The folder name, plus " 2", " 3"… when a session with that name already exists.
     /// The home folder is "~", like in the shell prompt.
-    private func uniqueName(for folder: URL) -> String {
+    private func uniqueName(for folder: URL, ignoring ignoredID: UUID? = nil) -> String {
         let isHome = folder.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
         let base = isHome ? "~" : (folder.lastPathComponent.isEmpty ? folder.path : folder.lastPathComponent)
-        let taken = Set(sessions.map(\.name))
+        let taken = Set(sessions.filter { $0.id != ignoredID }.map(\.name))
         guard taken.contains(base) else { return base }
         var n = 2
         while taken.contains("\(base) \(n)") { n += 1 }

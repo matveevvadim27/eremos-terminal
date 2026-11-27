@@ -85,4 +85,17 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions.map(\.name), ["~", "~ 2"])
         XCTAssertEqual(store.sessions[0].folderPath, FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path)
     }
+
+    func testRenameIsSavedAndEmptyNameRestoresDefault() {
+        let store = makeStore()
+        store.addSession(folder: URL(fileURLWithPath: "/tmp/api"))
+        let id = store.sessions[0].id
+        store.rename(id, to: "  Бекенд  ")
+        XCTAssertEqual(store.sessions[0].name, "Бекенд")
+        XCTAssertEqual(makeStore().sessions.first?.name, "Бекенд")
+
+        store.rename(id, to: "   ")
+        XCTAssertEqual(store.sessions[0].name, "api", "its own old name doesn't count as taken")
+        XCTAssertEqual(makeStore().sessions.first?.name, "api")
+    }
 }
