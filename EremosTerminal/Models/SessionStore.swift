@@ -219,13 +219,22 @@ final class SessionStore {
                 guard !isOnScreen(id) else { continue }
                 sessions[index].attention = .finished
                 notifier?.post(title: "Claude закончил", body: name, sessionID: id)
+                bounceDockIcon()
             case .needsInput(let message):
                 guard !isOnScreen(id) else { continue }
                 sessions[index].attention = .needsInput
                 notifier?.post(title: "Claude ждёт ответа · \(name)", body: message ?? "Нужно ваше решение", sessionID: id)
+                bounceDockIcon()
             }
         }
         updateDockBadge()
+    }
+
+    /// One bounce of the Dock icon. Unlike notification banners it isn't silenced by Focus / Do Not Disturb.
+    /// Only when the app is in the background — AppKit ignores the request otherwise anyway.
+    private func bounceDockIcon() {
+        guard !NSApp.isActive else { return }
+        NSApp.requestUserAttention(.informationalRequest)
     }
 
     /// You're looking at it right now: the app is in front and this session is open.
