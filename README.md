@@ -102,6 +102,7 @@ EremosTerminal/
 ├── Persistence/
 │   └── SessionPersistence.swift  sessions.json
 ├── Terminal/
+│   ├── TerminalFont.swift        встроенный JetBrains Mono (Resources/Fonts, лицензия OFL)
 │   ├── TerminalFactory.swift     создание терминала и запуск zsh, окружение (LANG для кириллицы)
 │   ├── TerminalContainerView.swift  мост SwiftUI → AppKit-терминал
 │   ├── ProcessTree.swift         дочерние процессы шелла и их завершение
@@ -113,7 +114,7 @@ EremosTerminal/
 │   ├── ContentView.swift         сайдбар + деталь
 │   ├── SidebarView.swift         список сессий
 │   └── SessionDetailView.swift   шапка с кнопками Claude, баннер, терминал, пустое состояние
-└── Resources/                    иконка (Assets.xcassets), дополнения к Info.plist
+└── Resources/                    иконка (Assets.xcassets), шрифт (Fonts/), дополнения к Info.plist
 ```
 
 Параллели с React для неочевидных мест:
@@ -138,7 +139,6 @@ EremosTerminal/
 - **Точка «Claude работает» не различает «думает» и «ждёт тебя»**: это видно по значку уведомления.
 - **Прошлые сессии — встроенный список Claude** (`claude --resume`) в терминале, а не нативный список в окне.
 - **Только тёмная тема**, как в дизайне. Нет перетаскивания сессий и настроек шрифта.
-- **Шрифт терминала — системный моноширинный (SF Mono)**: в дизайне JetBrains Mono, но он не входит в macOS.
 - **⌘1…⌘9 только для первых девяти сессий**, как вкладки браузера.
 - **Option работает как Meta** (настройка SwiftTerm по умолчанию): ⌥←/⌥→ двигают по словам в zsh,
   но символы, которые набираются через Option, в терминале не наберутся.

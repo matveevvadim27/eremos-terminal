@@ -31,7 +31,12 @@ enum Theme {
     /// Hairlines and translucent fills over the dark surfaces.
     static func white(_ opacity: Double) -> Color { .white.opacity(opacity) }
 
-    static let mono = Font.system(size: 11, design: .monospaced)
+    static let mono = mono(11)
+
+    /// JetBrains Mono (bundled, see TerminalFont) — paths and commands, like in the terminal.
+    static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .custom("JetBrains Mono", size: size).weight(weight)
+    }
 }
 
 extension Color {

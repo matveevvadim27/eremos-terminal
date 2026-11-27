@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The design is dark-only: menus, context menus and the folder dialog follow it too.
     @MainActor func applicationWillFinishLaunching(_ notification: Notification) {
         NSApp.appearance = NSAppearance(named: .darkAqua)
+        // Before any view asks for JetBrains Mono.
+        TerminalFont.registerBundledFonts()
     }
 
     /// A folder dropped on the Dock icon or passed to `open -a "Eremos Terminal" <folder>` → a new session.

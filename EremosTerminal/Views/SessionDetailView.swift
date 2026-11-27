@@ -92,7 +92,7 @@ private struct PathChip: View {
             Image(systemName: "folder")
                 .font(.system(size: 10))
             Text(path)
-                .font(.system(size: 11.5, design: .monospaced))
+                .font(Theme.mono(11.5))
                 .lineLimit(1)
                 .truncationMode(.head)
         }
@@ -237,7 +237,7 @@ private struct SessionBanner: View {
                     Image(systemName: "play.fill").font(.system(size: 11))
                     Text("Продолжить")
                     Text("claude --continue")
-                        .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                        .font(Theme.mono(11.5, weight: .medium))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
                         .background(Theme.onAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: 6))
@@ -381,7 +381,7 @@ private struct TerminalIllustration: View {
             .frame(height: 26)
             .background(Color(hex: 0x23211F))
             HStack(spacing: 8) {
-                Text(">").font(.system(size: 16, design: .monospaced))
+                Text(">").font(Theme.mono(16))
                 Rectangle().frame(width: 9, height: 19)
                 Spacer()
             }

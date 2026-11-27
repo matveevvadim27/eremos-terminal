@@ -14,7 +14,7 @@ enum TerminalFactory {
         delegate: LocalProcessTerminalViewDelegate
     ) -> LocalProcessTerminalView {
         let view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
-        view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        view.font = TerminalFont.font
         view.processDelegate = delegate
         applyTheme(to: view)
         view.startProcess(
