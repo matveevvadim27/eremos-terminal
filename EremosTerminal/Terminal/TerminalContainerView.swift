@@ -20,7 +20,7 @@ struct TerminalContainerView: NSViewRepresentable {
     }
 }
 
-/// A plain view that holds the current terminal, stretched to its whole size.
+/// A plain view that holds the current terminal, filling it below the toolbar.
 final class TerminalHostView: NSView {
     // weak: the store owns the terminals; the host only displays one.
     private weak var current: LocalProcessTerminalView?
@@ -46,19 +46,45 @@ final class TerminalHostView: NSView {
         current?.removeFromSuperview()
         current = terminal
         guard let terminal else { return }
-        terminal.frame = NSRect(
-            x: inset.left, y: inset.bottom,
-            width: max(0, bounds.width - inset.left - inset.right),
-            height: max(0, bounds.height - inset.top - inset.bottom)
-        )
-        // Follows the host's size; the terminal recomputes rows × columns and tells the shell (SIGWINCH).
-        terminal.autoresizingMask = [.width, .height]
         addSubview(terminal)
+        layoutTerminal()
         focusTerminal()
+    }
+
+    override func layout() {
+        super.layout()
+        layoutTerminal()
+    }
+
+    // Window resizes change the frame without always asking for layout(); the terminal must follow both.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        layoutTerminal()
+    }
+
+    /// The terminal goes into the part of the host not covered by the toolbar (`safeAreaRect`), minus the
+    /// padding, and gets a whole number of rows pinned to the top. Otherwise the leftover fraction of a row
+    /// pushes the text up and the first line slides under the toolbar.
+    /// The terminal recomputes rows × columns from its frame and tells the shell (SIGWINCH).
+    private func layoutTerminal() {
+        guard let terminal = current else { return }
+        let safe = safeAreaRect
+        let area = NSRect(
+            x: safe.minX + inset.left,
+            y: safe.minY + inset.bottom,
+            width: max(0, safe.width - inset.left - inset.right),
+            height: max(0, safe.height - inset.top - inset.bottom)
+        )
+        terminal.frame = area
+        // After the frame is set the terminal knows its rows; trim the height to exactly those rows.
+        let rowsHeight = min(area.height, terminal.getOptimalFrameSize().height)
+        guard rowsHeight > 0, rowsHeight < area.height else { return }
+        terminal.frame = NSRect(x: area.minX, y: area.maxY - rowsHeight, width: area.width, height: rowsHeight)
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        needsLayout = true
         focusTerminal()
     }
 
