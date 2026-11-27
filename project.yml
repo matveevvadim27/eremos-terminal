@@ -1,0 +1,78 @@
+# XcodeGen spec: `make project` turns it into EremosTerminal.xcodeproj (not committed — regenerate instead).
+name: EremosTerminal
+options:
+  bundleIdPrefix: com.eremos
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    from: "1.2.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Automatic
+    # Ad-hoc signing: a personal app, no Apple Developer account needed.
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  EremosTerminal:
+    type: application
+    platform: macOS
+    sources:
+      - path: EremosTerminal
+    dependencies:
+      - package: SwiftTerm
+    # Merged with the generated Info.plist: folders can be dropped on the Dock icon or opened with
+    # `open -a "Eremos Terminal" <folder>` — each becomes a new session.
+    info:
+      path: EremosTerminal/Resources/Info.plist
+      properties:
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Folder
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: None
+            LSItemContentTypes: [public.folder]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eremos.terminal
+        PRODUCT_NAME: Eremos Terminal
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDevelopmentRegion: ru
+        INFOPLIST_KEY_CFBundleDisplayName: Eremos Terminal
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        # No App Sandbox: the app has to spawn shells with full access to the user's files.
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+
+  EremosTerminalTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: EremosTerminalTests
+    dependencies:
+      - target: EremosTerminal
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Eremos Terminal.app/Contents/MacOS/Eremos Terminal"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  EremosTerminal:
+    build:
+      targets:
+        EremosTerminal: all
+        EremosTerminalTests: [test]
+    test:
+      targets:
+        - EremosTerminalTests
