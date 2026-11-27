@@ -34,39 +34,56 @@ struct SessionDetailView: View {
     }
 }
 
-/// Top-right buttons. Active only while the shell is idle: once Claude runs, typing a command would go into
-/// Claude's prompt, so they're disabled until Claude quits.
+/// Top-right: the Claude buttons while the shell is idle, a "Claude работает" mark while Claude runs (typing a
+/// command then would go into Claude's prompt), nothing once the shell has quit.
 private struct ClaudeToolbar: ToolbarContent {
     let session: Session
     let store: SessionStore
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Button {
-                store.startClaude(.new, in: session.id)
-            } label: {
-                Label("Новый Claude", systemImage: "sparkles")
-            }
-            .labelStyle(.titleAndIcon)
-            .help("claude — новый разговор (⌘↩)")
-            .disabled(!canStart)
+            switch session.status {
+            case .shell:
+                Button {
+                    store.startClaude(.new, in: session.id)
+                } label: {
+                    Label("Новый Claude", systemImage: "sparkles")
+                }
+                .labelStyle(.titleAndIcon)
+                .help("claude — новый разговор (⌘↩)")
 
-            // A split button: the main part opens Claude's list of past conversations, the arrow has
-            // "continue the last one".
-            Menu {
-                Button("Продолжить последний разговор") { store.startClaude(.continueLast, in: session.id) }
-            } label: {
-                Label("Прошлые сессии", systemImage: "clock.arrow.circlepath")
-            } primaryAction: {
-                store.startClaude(.pickPast, in: session.id)
+                // A split button: the main part opens Claude's list of past conversations, the arrow has
+                // "continue the last one".
+                Menu {
+                    Button("Продолжить последний разговор") { store.startClaude(.continueLast, in: session.id) }
+                } label: {
+                    Label("Прошлые сессии", systemImage: "clock.arrow.circlepath")
+                } primaryAction: {
+                    store.startClaude(.pickPast, in: session.id)
+                }
+                .labelStyle(.titleAndIcon)
+                .help("claude --resume — выбрать разговор из прошлых в этой папке (⌥⌘↩)")
+            case .claude:
+                ClaudeRunningMark()
+            case .exited:
+                EmptyView()
             }
-            .labelStyle(.titleAndIcon)
-            .help("claude --resume — выбрать разговор из прошлых в этой папке (⌥⌘↩)")
-            .disabled(!canStart)
         }
     }
+}
 
-    private var canStart: Bool { store.canStartClaude(in: session.id) }
+private struct ClaudeRunningMark: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(.green)
+                .frame(width: 8, height: 8)
+            Text("Claude работает")
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .help("Кнопки вернутся, когда Claude завершится")
+    }
 }
 
 private struct SessionBanner: View {
