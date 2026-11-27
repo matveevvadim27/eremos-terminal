@@ -47,10 +47,13 @@ private struct SessionHeader: View {
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1)
                 if session.displayPath != session.name {
+                    // The only thing in the row that may shrink: a long path gets cut, the buttons never wrap.
                     PathChip(path: session.displayPath)
+                        .layoutPriority(-1)
                 }
                 Spacer(minLength: 12)
                 ClaudeControls(session: session, store: store)
+                    .fixedSize()
                 Button {
                     store.close(session.id)
                 } label: {
@@ -62,6 +65,7 @@ private struct SessionHeader: View {
                     }
                 }
                 .buttonStyle(GhostButtonStyle())
+                .fixedSize()
                 .help("Закрыть сессию: шелл и всё, что в нём запущено, завершатся")
             } else {
                 Spacer()

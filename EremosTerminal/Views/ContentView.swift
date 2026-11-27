@@ -22,7 +22,8 @@ struct ContentView: View {
         // Content runs under the (transparent) title bar: the window buttons sit inside our top row.
         .ignoresSafeArea()
         .background(WindowChrome())
-        .frame(minWidth: 720, minHeight: 420)
+        // Wide enough for the header's buttons next to the sidebar.
+        .frame(minWidth: store.isSidebarVisible ? 920 : 660, minHeight: 420)
     }
 }
 
